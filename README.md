@@ -13,7 +13,7 @@
 [![GitHub Release](https://shieldcn.dev/github/release/varunaditya-plus/codextweaks.svg?size=sm)](https://github.com/varunaditya-plus/codextweaks/releases/latest)
 ![Please star this repo](https://shieldcn.dev/badge/★%20please%20star-22c55e.svg?theme=amber&color=eab308&size=sm&variant=outline)
 
-Use your own API key in the same Codex you know and love. Claude, Gemini, Muse, and Grok support is coming soon.
+Use your own API key in the same Codex you know and love. Claude, Gemini, Muse, and Grok support is coming soon + more tweaks. To suggest a tweak open an issue.
 
 </div>
 

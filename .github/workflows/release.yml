@@ -1,0 +1,158 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: "Codex Tweaks"
+  DMG_BASENAME: "CodexTweaks"
+  PROJECT: "CodexTweaks.xcodeproj"
+  SCHEME: "CodexTweaks"
+  PBXPROJ: "CodexTweaks.xcodeproj/project.pbxproj"
+
+jobs:
+  extract-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      should_release: ${{ steps.parse.outputs.should_release }}
+      changelog: ${{ steps.parse.outputs.changelog }}
+    steps:
+      - name: Parse version from commit message
+        id: parse
+        run: |
+          MSG=$(jq -r '.head_commit.message' "$GITHUB_EVENT_PATH" | head -n1)
+          if [[ "$MSG" =~ \(v([0-9]+\.[0-9]+\.[0-9]+)\) ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "Detected release version: $VERSION"
+
+            CHANGELOG=$(printf '%s' "$MSG" | sed -E 's/[[:space:]]*\(v[0-9]+\.[0-9]+\.[0-9]+\)[[:space:]]*$//')
+            if [[ "$CHANGELOG" == *:* ]]; then
+              CHANGELOG="${CHANGELOG#*:}"
+            fi
+            CHANGELOG=$(printf '%s' "$CHANGELOG" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+            if [[ -z "$CHANGELOG" ]]; then
+              CHANGELOG="Release ${VERSION}."
+            fi
+            echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$CHANGELOG" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+            echo "Changelog: $CHANGELOG"
+          else
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "No (vX.X.X) version found in commit message; skipping release."
+          fi
+
+  release:
+    needs: extract-version
+    if: needs.extract-version.outputs.should_release == 'true'
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve version
+        id: version
+        run: |
+          VERSION="${{ needs.extract-version.outputs.version }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version: $VERSION"
+
+      - name: Check tag does not already exist
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "Tag ${VERSION} already exists. Aborting to avoid duplicate release."
+            exit 1
+          fi
+
+      - name: Update version in project files
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          sed -i '' "s/MARKETING_VERSION = [0-9.]*;/MARKETING_VERSION = ${VERSION};/g" "${{ env.PBXPROJ }}"
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = ${{ github.run_number }};/g" "${{ env.PBXPROJ }}"
+
+          echo "Updated version to ${VERSION} (build ${{ github.run_number }}) in project.pbxproj"
+
+      - name: Select Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Build app
+        run: |
+          xcodebuild -project "${{ env.PROJECT }}" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -derivedDataPath build \
+            build
+
+      - name: Package release dmg
+        id: package
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          APP_PATH="${GITHUB_WORKSPACE}/build/Build/Products/Release/${{ env.APP_NAME }}.app"
+          DMG_NAME="${{ env.DMG_BASENAME }}-${VERSION}.dmg"
+          DIST_DIR="${GITHUB_WORKSPACE}/dist"
+          DMG_PATH="${DIST_DIR}/${DMG_NAME}"
+          DMGBUILD_ENV="${RUNNER_TEMP}/dmgbuild"
+
+          mkdir -p "${DIST_DIR}"
+          python3 -m venv "${DMGBUILD_ENV}"
+          "${DMGBUILD_ENV}/bin/pip" install --quiet dmgbuild==1.6.7
+
+          "${DMGBUILD_ENV}/bin/dmgbuild" \
+            -s dmg/settings.py \
+            -D app="${APP_PATH}" \
+            "${{ env.APP_NAME }}" \
+            "${DMG_PATH}"
+
+          CHECKSUM=$(shasum -a 256 "${DMG_PATH}" | awk '{print $1}')
+
+          echo "dmg_name=${DMG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "checksum=${CHECKSUM}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version updates
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ env.PBXPROJ }}"
+          if git diff --staged --quiet; then
+            echo "No version file changes to commit"
+          else
+            git commit -m "chore: bump version to ${VERSION}"
+            git push origin HEAD:main
+          fi
+
+      - name: Create and push release tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag -a "${VERSION}" -m "CodexTweaks ${VERSION}"
+          git push origin "${VERSION}"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: CodexTweaks ${{ steps.version.outputs.version }}
+          body: |
+            This is the release for version ${{ steps.version.outputs.version }} of CodexTweaks. To install, open the DMG and drag Codex Tweaks into Applications, then follow the instructions in the Readme.
+
+            Changelog:
+            ${{ needs.extract-version.outputs.changelog }}
+
+            SHA-256: `${{ steps.package.outputs.checksum }}`
+          files: dist/${{ steps.package.outputs.dmg_name }}
+          fail_on_unmatched_files: true
