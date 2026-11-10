@@ -3,14 +3,13 @@
 <div alt style="text-align: center; transform: scale(.25);">
 	<picture>
 		<source media="(prefers-color-scheme: dark)" srcset="https://github.com/varunaditya-plus/codextweaks/raw/main/assets/logo_dark.png" />
-		<img alt="CodexTweaks Logo" src="https://github.com/varunaditya-plus/codextweaks/raw/main/assets/logo_light.png" style="width: 170px;" />
+		<img alt="CodexTweaks Logo" src="https://github.com/varunaditya-plus/codextweaks/raw/main/assets/logo_light.png" style="width: 120px;" />
 	</picture>
 </div>
 
 # CodexTweaks
-![GitHub License](https://www.shieldcn.dev/github/license/varunaditya-plus/codextweaks.svg?variant=outline&size=sm)
-[![GitHub Downloads (all assets, all releases)](https://shieldcn.dev/github/downloads/varunaditya-plus/codextweaks.svg?variant=outline&size=sm)](https://github.com/varunaditya-plus/codextweaks/releases/latest)
-[![GitHub Release](https://shieldcn.dev/github/release/varunaditya-plus/codextweaks.svg?size=sm)](https://github.com/varunaditya-plus/codextweaks/releases/latest)
+![GitHub License](https://www.shieldcn.dev/github/license/varunaditya-plus/CodexTweaks.svg?variant=outline&size=sm)
+[![GitHub Release](https://shieldcn.dev/github/release/varunaditya-plus/CodexTweaks.svg?size=sm)](https://github.com/varunaditya-plus/CodexTweaks/releases/latest)
 ![Please star this repo](https://shieldcn.dev/badge/★%20please%20star-22c55e.svg?theme=amber&color=eab308&size=sm&variant=outline)
 
 Use your own API key in the same Codex you know and love. Claude, Gemini, Muse, and Grok support is coming soon + more tweaks. To suggest a tweak open an issue.
